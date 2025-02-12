@@ -18,3 +18,10 @@ CREATE TABLE posts (
     created_at BIGINT NOT NULL,
     published_at BIGINT
 );
+
+-- Add test authors
+INSERT INTO authors (name)
+VALUES
+    ('Mark'),
+    ('Tom'),
+    ('Travis');
