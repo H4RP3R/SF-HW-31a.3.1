@@ -1,5 +1,9 @@
 package storage
 
+import "fmt"
+
+var ErrEntryNotExist = fmt.Errorf("entry does not exist")
+
 // Post - публикация.
 type Post struct {
 	ID          int
