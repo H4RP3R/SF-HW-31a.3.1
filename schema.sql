@@ -16,5 +16,12 @@ CREATE TABLE posts (
     title TEXT  NOT NULL,
     content TEXT NOT NULL,
     created_at BIGINT NOT NULL,
-    published_at BIGINT
+    published_at BIGINT DEFAULT 0
 );
+
+-- Add test authors
+INSERT INTO authors (name)
+VALUES
+    ('Mark'),
+    ('Tom'),
+    ('Travis');

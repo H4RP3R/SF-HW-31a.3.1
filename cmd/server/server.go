@@ -1,10 +1,15 @@
 package main
 
 import (
+	"flag"
+	"log"
+	"net/http"
+	"os"
+
 	"GoNews/pkg/api"
 	"GoNews/pkg/storage"
 	"GoNews/pkg/storage/memdb"
-	"net/http"
+	"GoNews/pkg/storage/postgres"
 )
 
 // Сервер GoNews.
@@ -15,28 +20,43 @@ type server struct {
 
 func main() {
 	// Создаём объект сервера.
-	var srv server
+	var (
+		srv    server
+		dbType string
+	)
 
-	// Создаём объекты баз данных.
-	//
-	// БД в памяти.
-	db := memdb.New()
-    /*
-	// Реляционная БД PostgreSQL.
-	db2, err := postgres.New("postgres://postgres:postgres@server.domain/posts")
-	if err != nil {
-		log.Fatal(err)
-	}
-	// Документная БД MongoDB.
-	db3, err := mongo.New("mongodb://server.domain:27017/")
-	if err != nil {
-		log.Fatal(err)
-	}
-	_, _ = db2, db3
-	*/
+	flag.StringVar(&dbType, "db", "memdb", "Specify database for the application. Available: memdb, postgres, mongo")
+	flag.Parse()
 
-	// Инициализируем хранилище сервера конкретной БД.
-	srv.db = db
+	switch dbType {
+	case "memdb":
+		// Создаём объекты баз данных.
+		//
+		// БД в памяти.
+		srv.db = memdb.New()
+
+	case "postgres":
+		// Реляционная БД PostgreSQL.
+		conf := postgres.Config{
+			User:     "postgres",
+			Password: os.Getenv("POSTGRES_PASSWORD"),
+			Host:     "localhost",
+			Port:     "5433",
+			DBName:   "gonews",
+		}
+		db, err := postgres.New(conf.ConString())
+		if err != nil {
+			log.Fatal(err)
+		}
+		srv.db = db
+
+	case "mongo":
+		// Документная БД MongoDB.
+		// ...
+
+	default:
+		log.Fatal("Invalid DB type specified")
+	}
 
 	// Создаём объект API и регистрируем обработчики.
 	srv.api = api.New(srv.db)
