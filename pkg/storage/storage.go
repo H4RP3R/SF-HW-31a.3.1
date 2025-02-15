@@ -2,7 +2,12 @@ package storage
 
 import "fmt"
 
-var ErrEntryNotExist = fmt.Errorf("entry does not exist")
+var (
+	ErrEntryNotExist = fmt.Errorf("entry does not exist")
+
+	ErrConnectDB       = fmt.Errorf("unable to establish DB connection")
+	ErrDBNotResponding = fmt.Errorf("DB not responding")
+)
 
 // Post - публикация.
 type Post struct {

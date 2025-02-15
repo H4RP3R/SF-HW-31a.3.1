@@ -1,30 +1,29 @@
-package postgres
+package mongo
 
 import (
 	"GoNews/pkg/storage"
 	"context"
 	"errors"
-	"os"
 	"reflect"
 	"testing"
 	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
 )
 
-func postgresConf() Config {
+func mongoConf() Config {
 	conf := Config{
-		User:     "postgres",
-		Password: os.Getenv("POSTGRES_PASSWORD"),
-		Host:     "localhost",
-		Port:     "5433",
-		DBName:   "gonews",
+		Host:   "localhost",
+		Port:   "27018",
+		DBName: "gonews",
 	}
 
 	return conf
 }
 
 func storageConnect() (*Store, error) {
-	conf := postgresConf()
-	db, err := New(conf.ConString())
+	conf := mongoConf()
+	db, err := New(conf)
 	if err != nil {
 		return nil, storage.ErrConnectDB
 	}
@@ -37,19 +36,10 @@ func storageConnect() (*Store, error) {
 	return db, nil
 }
 
-// truncatePosts restores the original state of DB for further testing.
-func truncatePosts(db *Store) error {
-	_, err := db.db.Exec(context.Background(), "TRUNCATE TABLE posts")
-	if err != nil {
-		return err
-	}
-
-	_, err = db.db.Exec(context.Background(), "ALTER SEQUENCE posts_id_seq RESTART WITH 1")
-	if err != nil {
-		return nil
-	}
-
-	return nil
+// restoreDB restores the original state of DB for further testing.
+func restoreDB(db *Store) error {
+	collection := db.client.Database(db.dbName).Collection("posts")
+	return collection.Drop(context.Background())
 }
 
 func TestStore_AddPost(t *testing.T) {
@@ -59,7 +49,7 @@ func TestStore_AddPost(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		err := truncatePosts(db)
+		err := restoreDB(db)
 		if err != nil {
 			t.Errorf("unexpected error clearing posts table: %v", err)
 		}
@@ -74,17 +64,14 @@ func TestStore_AddPost(t *testing.T) {
 		}
 	}
 
-	var postCnt int
-	err = db.db.QueryRow(context.Background(), `
-		SELECT COUNT(id) FROM posts
-	`).Scan(&postCnt)
+	collection := db.client.Database(db.dbName).Collection("posts")
+	postCnt, err := collection.CountDocuments(context.Background(), bson.M{})
 	if err != nil {
 		t.Fatalf("unexpected error counting post in DB: %v", err)
 	}
-	if postCnt != len(storage.TestPosts) {
+	if postCnt != int64(len(storage.TestPosts)) {
 		t.Errorf("expected %d posts in DB, but got %d", len(storage.TestPosts), postCnt)
 	}
-
 }
 
 func TestStore_Posts(t *testing.T) {
@@ -94,7 +81,7 @@ func TestStore_Posts(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		err := truncatePosts(db)
+		err := restoreDB(db)
 		if err != nil {
 			t.Errorf("unexpected error clearing posts table: %v", err)
 		}
@@ -109,23 +96,21 @@ func TestStore_Posts(t *testing.T) {
 		}
 	}
 
-	var postCnt int
-	err = db.db.QueryRow(context.Background(), `
-		SELECT COUNT(id) FROM posts
-	`).Scan(&postCnt)
+	collection := db.client.Database(db.dbName).Collection("posts")
+	postCnt, err := collection.CountDocuments(context.Background(), bson.M{})
 	if err != nil {
 		t.Fatalf("unexpected error counting post in DB: %v", err)
 	}
-	if postCnt != len(storage.TestPosts) {
-		t.Fatalf("posts in DB %d, should be %d, aborting test", postCnt, len(storage.TestPosts))
+	if postCnt != int64(len(storage.TestPosts)) {
+		t.Fatalf("expected %d posts in DB, but got %d", len(storage.TestPosts), postCnt)
 	}
 
 	posts, err := db.Posts()
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
-	postCnt = len(posts)
-	if postCnt != len(storage.TestPosts) {
+	postCnt = int64(len(posts))
+	if postCnt != int64(len(storage.TestPosts)) {
 		t.Errorf("expected %d posts, but got %d posts", len(storage.TestPosts), postCnt)
 	}
 	if !reflect.DeepEqual(posts, storage.TestPosts) {
@@ -140,7 +125,7 @@ func TestStore_UpdatePost_postExists(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		err := truncatePosts(db)
+		err := restoreDB(db)
 		if err != nil {
 			t.Errorf("unexpected error clearing posts table: %v", err)
 		}
@@ -153,6 +138,15 @@ func TestStore_UpdatePost_postExists(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error adding post: %v", err)
 		}
+	}
+
+	collection := db.client.Database(db.dbName).Collection("posts")
+	postCnt, err := collection.CountDocuments(context.Background(), bson.M{})
+	if err != nil {
+		t.Fatalf("unexpected error counting post in DB: %v", err)
+	}
+	if postCnt != int64(len(storage.TestPosts)) {
+		t.Fatalf("expected %d posts in DB, but got %d", len(storage.TestPosts), postCnt)
 	}
 
 	targetPost := storage.TestPosts[0]
@@ -169,28 +163,9 @@ func TestStore_UpdatePost_postExists(t *testing.T) {
 	}
 
 	var updatedPost storage.Post
-	err = db.db.QueryRow(context.Background(), `
-		SELECT
-			p.id,
-			p.title,
-			p.content,
-			p.author_id,
-			a.name,
-			p.created_at,
-			p.published_at
-		FROM posts AS p
-		JOIN authors AS a
-		ON p.author_id = a.id
-		WHERE p.id = $1
-	`, targetPost.ID).Scan(
-		&updatedPost.ID,
-		&updatedPost.Title,
-		&updatedPost.Content,
-		&updatedPost.AuthorID,
-		&updatedPost.AuthorName,
-		&updatedPost.CreatedAt,
-		&updatedPost.PublishedAt,
-	)
+	collection = db.client.Database(db.dbName).Collection("posts")
+	filter := bson.D{{Key: "id", Value: targetPost.ID}}
+	err = collection.FindOne(context.Background(), filter).Decode(&updatedPost)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -207,7 +182,7 @@ func TestStore_UpdatePost_postNotExist(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		err := truncatePosts(db)
+		err := restoreDB(db)
 		if err != nil {
 			t.Errorf("unexpected error clearing posts table: %v", err)
 		}
@@ -244,7 +219,7 @@ func TestStore_DeletePost_postExists(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		err := truncatePosts(db)
+		err := restoreDB(db)
 		if err != nil {
 			t.Errorf("unexpected error clearing posts table: %v", err)
 		}
@@ -259,15 +234,13 @@ func TestStore_DeletePost_postExists(t *testing.T) {
 		}
 	}
 
-	var postCnt int
-	err = db.db.QueryRow(context.Background(), `
-		SELECT COUNT(id) FROM posts
-	`).Scan(&postCnt)
+	collection := db.client.Database(db.dbName).Collection("posts")
+	postCnt, err := collection.CountDocuments(context.Background(), bson.M{})
 	if err != nil {
 		t.Fatalf("unexpected error counting post in DB: %v", err)
 	}
-	if postCnt != len(storage.TestPosts) {
-		t.Fatalf("posts in DB %d, should be %d, aborting test", postCnt, len(storage.TestPosts))
+	if postCnt != int64(len(storage.TestPosts)) {
+		t.Fatalf("expected %d posts in DB, but got %d", len(storage.TestPosts), postCnt)
 	}
 
 	for _, post := range storage.TestPosts {
@@ -286,14 +259,13 @@ func TestStore_DeletePost_postExists(t *testing.T) {
 		}
 	}
 
-	err = db.db.QueryRow(context.Background(), `
-		SELECT COUNT(id) FROM posts
-	`).Scan(&postCnt)
+	collection = db.client.Database(db.dbName).Collection("posts")
+	postCnt, err = collection.CountDocuments(context.Background(), bson.M{})
 	if err != nil {
 		t.Fatalf("unexpected error counting post in DB: %v", err)
 	}
 	if postCnt > 0 {
-		t.Errorf("DB should be empty. Posts in DB %d", postCnt)
+		t.Errorf("expected %d posts in DB, but got %d", len(storage.TestPosts), postCnt)
 	}
 }
 
@@ -304,7 +276,7 @@ func TestStore_DeletePost_postNotExist(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		err := truncatePosts(db)
+		err := restoreDB(db)
 		if err != nil {
 			t.Errorf("unexpected error clearing posts table: %v", err)
 		}
