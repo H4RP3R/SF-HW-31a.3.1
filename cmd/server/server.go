@@ -9,6 +9,7 @@ import (
 	"GoNews/pkg/api"
 	"GoNews/pkg/storage"
 	"GoNews/pkg/storage/memdb"
+	"GoNews/pkg/storage/mongo"
 	"GoNews/pkg/storage/postgres"
 )
 
@@ -52,7 +53,16 @@ func main() {
 
 	case "mongo":
 		// Документная БД MongoDB.
-		// ...
+		conf := mongo.Config{
+			Host:   "localhost",
+			Port:   "27018",
+			DBName: "gonews",
+		}
+		db, err := mongo.New(conf)
+		if err != nil {
+			log.Fatal(err)
+		}
+		srv.db = db
 
 	default:
 		log.Fatal("Invalid DB type specified")
