@@ -6,6 +6,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type Store struct {
@@ -25,6 +26,17 @@ func New(conf Config) (*Store, error) {
 	}
 
 	s.client = client
+
+	// Create the posts collection in advance.
+	err = s.client.Database(s.dbName).CreateCollection(context.Background(), "posts")
+	if err != nil {
+		return nil, err
+	}
+	// Create the unique index on ID field.
+	err = s.CreateUniqueIndexOnID()
+	if err != nil {
+		return nil, err
+	}
 
 	return &s, nil
 }
@@ -104,4 +116,14 @@ func (s *Store) DeletePost(post storage.Post) error {
 	}
 
 	return nil
+}
+
+func (s *Store) CreateUniqueIndexOnID() error {
+	collection := s.client.Database(s.dbName).Collection("posts")
+	_, err := collection.Indexes().CreateOne(context.Background(), mongo.IndexModel{
+		Keys:    bson.D{{Key: "id", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	})
+
+	return err
 }
