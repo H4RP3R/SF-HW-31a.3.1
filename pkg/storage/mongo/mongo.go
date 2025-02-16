@@ -90,8 +90,8 @@ func (s *Store) UpdatePost(post storage.Post) error {
 	collection := s.client.Database(s.dbName).Collection("posts")
 	filter := bson.D{{Key: "id", Value: post.ID}}
 	update := bson.D{{Key: "$set", Value: bson.M{
-		"title":       post.Title,
-		"content":     post.Content,
+		"Title":       post.Title,
+		"Content":     post.Content,
 		"AuthorID":    post.AuthorID,
 		"AuthorName":  post.AuthorName,
 		"CreatedAt":   post.CreatedAt,
