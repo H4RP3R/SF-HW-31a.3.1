@@ -333,4 +333,6 @@ func TestStore_DeletePost_postNotExist(t *testing.T) {
 
 func init() {
 	log.SetOutput(io.Discard)
+	db, _ := storageConnect()
+	restoreDB(db)
 }
