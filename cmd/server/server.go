@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -49,7 +50,15 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		defer db.Close()
+
+		err = db.Ping()
+		if err != nil {
+			log.Fatal(fmt.Errorf("%w: %v", storage.ErrDBNotResponding, err))
+		}
+
 		srv.db = db
+		log.Printf("connected to postgres: %s", conf)
 
 	case "mongo":
 		// Документная БД MongoDB.
@@ -62,7 +71,15 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		defer db.Close()
+
+		err = db.Ping()
+		if err != nil {
+			log.Fatal(fmt.Errorf("%w: %v", storage.ErrDBNotResponding, err))
+		}
+
 		srv.db = db
+		log.Printf("connected to mongo: %+v", conf)
 
 	default:
 		log.Fatal("Invalid DB type specified")
