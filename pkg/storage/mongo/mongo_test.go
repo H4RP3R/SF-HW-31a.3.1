@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 func mongoConf() Config {
@@ -71,6 +72,35 @@ func TestStore_AddPost(t *testing.T) {
 	}
 	if postCnt != int64(len(storage.TestPosts)) {
 		t.Errorf("expected %d posts in DB, but got %d", len(storage.TestPosts), postCnt)
+	}
+}
+
+func TestStore_AddPost_duplicatedID(t *testing.T) {
+	db, err := storageConnect()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() {
+		err := restoreDB(db)
+		if err != nil {
+			t.Errorf("unexpected error clearing posts table: %v", err)
+		}
+
+		db.Close()
+	})
+
+	for _, tp := range storage.TestPosts {
+		err := db.AddPost(tp)
+		if err != nil {
+			t.Fatalf("unexpected error adding post: %v", err)
+		}
+	}
+
+	dupPost := storage.TestPosts[0]
+	err = db.AddPost(dupPost)
+	if !mongo.IsDuplicateKeyError(err) {
+		t.Errorf("expected error inserting document with duplicate ID, got %v", err)
 	}
 }
 
