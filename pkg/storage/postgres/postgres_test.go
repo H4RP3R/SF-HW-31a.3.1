@@ -1,13 +1,17 @@
 package postgres
 
 import (
-	"GoNews/pkg/storage"
 	"context"
 	"errors"
+	"io"
 	"os"
 	"reflect"
 	"testing"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+
+	"GoNews/pkg/storage"
 )
 
 func postgresConf() Config {
@@ -324,4 +328,8 @@ func TestStore_DeletePost_postNotExist(t *testing.T) {
 	if !errors.Is(err, storage.ErrEntryNotExist) {
 		t.Errorf("expected error %v, got error %v", storage.ErrEntryNotExist, err)
 	}
+}
+
+func init() {
+	log.SetOutput(io.Discard)
 }

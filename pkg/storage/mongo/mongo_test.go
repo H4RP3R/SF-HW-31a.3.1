@@ -1,15 +1,18 @@
 package mongo
 
 import (
-	"GoNews/pkg/storage"
 	"context"
 	"errors"
+	"io"
 	"reflect"
 	"testing"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+
+	"GoNews/pkg/storage"
 )
 
 func mongoConf() Config {
@@ -326,4 +329,8 @@ func TestStore_DeletePost_postNotExist(t *testing.T) {
 	if !errors.Is(err, storage.ErrEntryNotExist) {
 		t.Errorf("expected error %v, got error %v", storage.ErrEntryNotExist, err)
 	}
+}
+
+func init() {
+	log.SetOutput(io.Discard)
 }
