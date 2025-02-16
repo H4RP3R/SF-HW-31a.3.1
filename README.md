@@ -25,3 +25,15 @@ chmod +x cmd/run_mongo.sh
 ```console
 go test -v ./...
 ```
+
+## 4. Запуск сервера с определенной БД
+
+Доступные опции:
+
+* memdb
+* postgres
+* mongo
+
+```console
+go run cmd/server/server.go -db <option>
+```
