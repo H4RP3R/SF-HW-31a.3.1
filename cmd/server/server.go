@@ -3,9 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
+
+	log "github.com/sirupsen/logrus"
 
 	"GoNews/pkg/api"
 	"GoNews/pkg/storage"
@@ -58,7 +59,7 @@ func main() {
 		}
 
 		srv.db = db
-		log.Printf("connected to postgres: %s", conf)
+		log.Infof("connected to postgres: %s", conf)
 
 	case "mongo":
 		// Документная БД MongoDB.
@@ -79,7 +80,7 @@ func main() {
 		}
 
 		srv.db = db
-		log.Printf("connected to mongo: %+v", conf)
+		log.Infof("connected to mongo: %+v", conf)
 
 	default:
 		log.Fatal("Invalid DB type specified")
