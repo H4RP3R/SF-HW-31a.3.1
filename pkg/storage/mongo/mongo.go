@@ -3,6 +3,7 @@ package mongo
 import (
 	"GoNews/pkg/storage"
 	"context"
+	"fmt"
 
 	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
@@ -28,11 +29,18 @@ func New(conf Config) (*Store, error) {
 
 	s.client = client
 
-	// Create the posts collection in advance.
-	err = s.client.Database(s.dbName).CreateCollection(context.Background(), "posts")
+	// Create the posts collection in advance if not exist.
+	collExists, err := collectionExists(s.client.Database(s.dbName), "posts")
 	if err != nil {
 		return nil, err
 	}
+	if !collExists {
+		err = s.client.Database(s.dbName).CreateCollection(context.Background(), "posts")
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// Create the unique index on ID field.
 	err = s.CreateUniqueIndexOnID()
 	if err != nil {
@@ -130,12 +138,52 @@ func (s *Store) DeletePost(post storage.Post) error {
 	return nil
 }
 
+// CreateUniqueIndexOnID creates a unique index on the id field if not exists.
 func (s *Store) CreateUniqueIndexOnID() error {
 	collection := s.client.Database(s.dbName).Collection("posts")
-	_, err := collection.Indexes().CreateOne(context.Background(), mongo.IndexModel{
+	cur, err := collection.Indexes().List(context.Background())
+	if err != nil {
+		return err
+	}
+	defer cur.Close(context.Background())
+
+	for cur.Next(context.Background()) {
+		var index bson.M
+		err = cur.Decode(&index)
+		if err != nil {
+			return err
+		}
+		// Mongo automatically names the index on the "id" as "id_1".
+		if index["name"] == "id_1" {
+			return nil
+		}
+	}
+	if err := cur.Err(); err != nil {
+		return err
+	}
+
+	_, err = collection.Indexes().CreateOne(context.Background(), mongo.IndexModel{
 		Keys:    bson.D{{Key: "id", Value: 1}},
 		Options: options.Index().SetUnique(true),
 	})
+	if err != nil {
+		return err
+	}
 
-	return err
+	return nil
+}
+
+func collectionExists(db *mongo.Database, collName string) (bool, error) {
+	names, err := db.ListCollectionNames(context.Background(), bson.D{})
+	if err != nil {
+		return false, fmt.Errorf("failed to list collection names: %w", err)
+	}
+
+	for _, name := range names {
+		if name == collName {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
