@@ -98,12 +98,12 @@ func (s *Store) UpdatePost(post storage.Post) error {
 	collection := s.client.Database(s.dbName).Collection("posts")
 	filter := bson.D{{Key: "id", Value: post.ID}}
 	update := bson.D{{Key: "$set", Value: bson.M{
-		"Title":       post.Title,
-		"Content":     post.Content,
-		"AuthorID":    post.AuthorID,
-		"AuthorName":  post.AuthorName,
-		"CreatedAt":   post.CreatedAt,
-		"PublishedAt": post.PublishedAt,
+		"title":        post.Title,
+		"content":      post.Content,
+		"author_id":    post.AuthorID,
+		"author_name":  post.AuthorName,
+		"created_at":   post.CreatedAt,
+		"published_at": post.PublishedAt,
 	}}}
 	result, err := collection.UpdateOne(context.Background(), filter, update)
 	if err != nil {
